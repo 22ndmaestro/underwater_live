@@ -1,0 +1,12 @@
+{
+  "name": "underwater-live-piratetok",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "piratetok-live-js": "^0.3.0",
+    "ws": "^8.18.0"
+  }
+}

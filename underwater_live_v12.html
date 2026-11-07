@@ -1,0 +1,190 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Underwater LIVE v12</title><style>*{box-sizing:border-box}html,body{height:100%;overflow:hidden;overscroll-behavior:none}body{margin:0;background:#061525;color:#e7faff;font:14px system-ui;display:grid;grid-template-columns:minmax(190px,300px) minmax(240px,420px) minmax(190px,300px);gap:14px;justify-content:center;align-items:center;padding:12px}.screen{position:relative;width:100%;max-height:calc(100dvh - 24px);aspect-ratio:9/16;overflow:hidden;border-radius:22px;background:linear-gradient(#087eaa,#06557f 34%,#063d66 70%,#062d4c);box-shadow:0 12px 50px #0008;justify-self:center}canvas{width:100%;height:100%;display:block}.panel{width:100%;height:calc(100dvh - 24px);min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#3b829a #102a40;background:#102a40;border:1px solid #2a5c73;border-radius:16px;padding:18px}.panel h2{font-size:19px;margin:14px 0 6px}.panel h3{margin-top:22px}button,input{font:inherit}button{border:0;border-radius:10px;padding:11px 14px;margin:5px 4px 5px 0;background:#18a9c8;color:#042235;font-weight:700;cursor:pointer}button:hover{background:#70e5ef}input{width:100%;padding:9px;border-radius:8px;border:1px solid #50788b;background:#071c2d;color:white;margin:7px 0}label{display:block;margin-top:12px;color:#b6dce9}small{color:#a2c4d0}.status{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.live{background:#ff315d;padding:5px 9px;border-radius:7px;font-weight:800}.ranking{display:grid;gap:7px}.rankrow{display:flex;align-items:center;gap:9px;background:#183e55;border-radius:9px;padding:9px;min-width:0}.rankrow .value{margin-left:auto;color:#ffdf91;font-weight:700;white-space:nowrap}.rankrow span:nth-child(2){overflow-wrap:anywhere;min-width:0}.ranknum{min-width:24px;font-weight:800}.legend{font-size:12px;line-height:1.7;color:#b7dce7}@media(max-width:760px){body{grid-template-columns:minmax(105px,1fr) minmax(160px,1.5fr) minmax(105px,1fr);gap:5px;padding:5px}.panel{height:calc(100dvh - 10px);padding:9px;border-radius:10px;font-size:12px}.screen{max-height:calc(100dvh - 10px);border-radius:10px}.panel h2{font-size:14px}.panel h3{font-size:13px}.status{font-size:11px}button{padding:8px 6px;font-size:11px}input{padding:6px;font-size:12px}.rankrow{padding:5px;gap:4px}.ranknum{min-width:14px}.rankrow .value{font-size:10px}}</style></head><body><aside class="panel" id="statsPanel" aria-label="Live statistics" tabindex="0"><h2>📊 Live stats</h2><div class="status"><span class="live">● LIVE</span><span id="count">0 viewer bubbles</span><span id="liveViewerCount">0 LIVE viewers</span></div><h3>🏆 Gift leaderboard</h3><small>LIVE gifts: diamond equivalents reported by PirateTok; simulator: test coin values.</small><div id="ranking" class="ranking">No gifts yet</div><p class="legend">Ranked by total gifted coins. Gold, electric ice blue & copper highlight the top three gifters.</p><h3>🫧 Bubble behaviour</h3><p class="legend">Gift bubbles stay in the upper third without a visible boundary. Likes, comments & shares create avatar bubbles that merge into the viewer's main bubble. Localized contact dents let neighbouring bubbles gently deform.</p><small>Simulation uses initials. LIVE avatars appear when TikTok supplies profile images.</small></aside><main class="screen" aria-label="Underwater live preview"><canvas id="sea" width="540" height="960"></canvas></main><aside class="panel" id="controlsPanel" aria-label="Simulation controls" tabindex="0"><h2>🎛️ Controls</h2><h3>🔗 TikTok LIVE · PirateTok</h3><label for="liveUser">TikTok username</label><input id="liveUser" placeholder="@yourusername" autocomplete="off"><button id="connectBtn" onclick="connectLive()">Connect LIVE</button><button onclick="disconnectLive()">Disconnect</button><p id="connectionStatus" class="legend" role="status">Disconnected · simulation available</p><p class="legend">If it keeps reconnecting, read the exact retry reason here and in the Node.js terminal. A TikTok LIVE must be active. Check <a href="/health" target="_blank" style="color:#9ef">relay health</a>.</p><h3>🧪 Simulation</h3><p>Interactive event simulator</p><label for="name">Viewer name</label><input id="name" value="OceanFan" maxlength="22"><label for="streak">Like streak</label><input id="streak" type="number" min="1" max="500" value="15"><button onclick="like()">♥ Like streak</button><button onclick="comment()">💬 Comment</button><button onclick="share()">↗ Share</button><label for="coins">Gift coins</label><input id="coins" type="number" min="1" max="100000" value="100"><button onclick="gift()">🎁 Send gift</button><h3>👥 Crowd simulation</h3><button id="crowdBtn" onclick="crowd()">Start crowd simulation</button><button onclick="reset()">↻ Reset</button><p class="legend">Temporary like, share & comment bubbles never exceed two-thirds the diameter of the second-largest gift bubble. The crowd generates new gifters, returning gifters, likes, shares & comments. Gift FX: 100+ coins = Pearl Burst, 1,000+ = Tidal Crown, 10,000+ = Leviathan.</p><h3>How it works</h3><p class="legend">Each viewer has one main bubble. For non-gifters, like streaks increase bubble size logarithmically & extend lifetime. Once a viewer gifts, their bubble becomes persistent & ONLY additional gifts can grow it. Likes, comments & shares create merging avatar animations without affecting the size or gift ranking.</p></aside><script>
+document.querySelectorAll('.panel').forEach(panel=>panel.addEventListener('wheel',e=>e.stopPropagation(),{passive:true}));
+const c=document.getElementById('sea'),ctx=c.getContext('2d'),W=540,H=960;let bubbles=[],ambient=[],time=0,last=performance.now(),lobsters=[];const GIFT_ZONE=H/3;const rand=(a,b)=>a+Math.random()*(b-a);const colors=['#ff8e82','#ffd56b','#ad9bff','#65e6c8','#fca6e9','#8acaff'];for(let i=0;i<65;i++)ambient.push({x:rand(0,W),y:rand(0,H),r:rand(2,10),s:rand(.3,1.8),phase:rand(0,7)});for(let i=0;i<3;i++)lobsters.push({x:rand(20,480),y:rand(260,730),phase:rand(0,7),scale:rand(.65,1.15)});
+function viewer(){return document.getElementById('name').value.trim()||'OceanFan'}
+const baseRadius=27;
+// All temporary bubbles are limited by the SECOND largest currently displayed gift bubble.
+// Until two gifters exist, use the standard gift-bubble starting radius as reference.
+function temporaryRadiusCap(){
+ const sizes=bubbles.filter(b=>b.kind==='gift'&&!b.burst).map(b=>b.displayR||b.r||baseRadius).sort((a,b)=>b-a);
+ return (2/3)*(sizes.length>=2?sizes[1]:baseRadius);
+}
+function radiusFor(b){
+ // Gift bubbles must match gift leaderboard order, not accumulated likes/comments.
+ // Strictly increasing logarithmic curve; large coin totals never flatten at a fixed cap.
+ if(b.kind==='gift'){
+  const logCoins=Math.log1p(Math.max(0,b.coins));
+  return baseRadius+81*logCoins/(logCoins+5);
+ }
+ return Math.min(108,baseRadius+14*Math.log1p(b.likes/8)+10*Math.log1p(b.shares*2+b.comments));
+}
+let incoming=[];let rankTick=0;let effects=[];let crowdTimer=null;let crowdIndex=0;const crowdNames=['CoralQueen','BlueWave','DeepSea','Pearl','Nemo','Starfish','Aqua','Bubbles','LobsterKing','TidalWave','ReefRider','SeaGlass','Kraken','Marina','OceanSoul','ClamJam'];const giftTiers=[{coins:10000,label:'Leviathan',tier:3},{coins:1000,label:'Tidal Crown',tier:2},{coins:100,label:'Pearl Burst',tier:1},{coins:20,label:'Sea Spark',tier:0},{coins:1,label:'Shell',tier:0}];
+function rankings(){let ranked=bubbles.filter(b=>b.kind==='gift'&&!b.burst).sort((a,b)=>b.coins-a.coins);ranked.forEach((b,i)=>b.rank=i+1);document.getElementById('ranking').innerHTML=ranked.length?ranked.map((b,i)=>`<div class="rankrow" style="border-left:3px solid ${i===0?'#FFD34D':i===1?'#57E5FF':i===2?'#FF9454':'transparent'}"><span class="ranknum">${i===0?'🥇':i===1?'💎':i===2?'🥉':i+1}</span><span>${escapeHtml(b.name)}</span><span class="value">💎 ${b.coins.toLocaleString()}</span></div>`).join(''):'No gifts yet';}
+function escapeHtml(v){return v.replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+
+function make(name,kind,streak=1,coins=0,avatarUrl="",userId=""){
+ const previousLeader=bubbles.filter(q=>q.kind==='gift'&&!q.burst).sort((a,b)=>b.coins-a.coins)[0]||null;
+ let b=bubbles.find(q=>(userId&&q.userId===userId||(!userId&&q.name.toLowerCase()===name.toLowerCase()))&&!q.burst);
+ if(!b){b={name,kind:'temporary',likes:0,comments:0,shares:0,coins:0,gifts:0,x:rand(70,W-70),y:H+55,r:baseRadius,desiredR:baseRadius,age:0,life:7,phase:rand(0,7),speed:rand(.48,.9),flash:0,burst:0,color:colors[Math.floor(rand(0,colors.length))]};b.userId=userId||"";bubbles.push(b)}
+ if(avatarUrl && /^https:\/\//i.test(avatarUrl) && b.avatarUrl!==avatarUrl){b.avatarUrl=avatarUrl;const img=new Image();img.referrerPolicy="no-referrer";img.src=avatarUrl;b.avatar=img;}
+ const amount=kind==='like'?Math.max(1,streak):1;
+ if(kind==='like'){b.likes+=amount;if(b.kind!=='gift')b.life=Math.max(b.life,6+5*Math.log1p(b.likes));}
+ if(kind==='comment'){b.comments++;if(b.kind!=='gift')b.life=Math.max(b.life,b.age+6)}
+ if(kind==='share'){b.shares++;if(b.kind!=='gift')b.life=Math.max(b.life,b.age+11)}
+ if(kind==='gift'){b.kind='gift';b.coins+=coins;b.gifts++;b.life=Infinity}
+ // Once gifted, bubble geometry depends exclusively on gifted value. Other events are visual only.
+ if(kind==='gift'||b.kind!=='gift')b.desiredR=radiusFor(b);
+ b.flash=.6;
+ // Every interaction emits a visible bubble that swims into the main viewer bubble.
+ const n=kind==='like'?Math.min(8,Math.max(1,Math.ceil(Math.log2(amount+1)))):1;
+ for(let i=0;i<n;i++)incoming.push({target:b,x:rand(35,W-35),y:H+rand(10,140),r:kind==='gift'?Math.min(25,9+4*Math.log1p(coins)):kind==='share'?17:kind==='like'?12:14,kind,age:0,phase:rand(0,7),speed:rand(.65,1.15)});
+ if(kind==='gift'){
+  layoutGifts();rankings();
+  const currentLeader=bubbles.filter(q=>q.kind==='gift'&&!q.burst).sort((a,b)=>b.coins-a.coins)[0]||null;
+  if(previousLeader && currentLeader!==previousLeader){
+   // A new leader must visually become largest immediately, not several seconds later.
+   for(const q of bubbles)if(q.kind==='gift')q.r=q.displayR||q.desiredR;
+  }
+  const tier=coins>=10000?3:coins>=1000?2:coins>=100?1:0;if(tier)effects.push({target:b,tier,age:0,particles:Array.from({length:tier*30},()=>({a:rand(0,Math.PI*2),v:rand(40,100+tier*80),r:rand(1,4+tier)}))});}
+}
+// Pack all permanent gift bubbles strictly inside the upper third. Shrink their
+// display radii as the collection grows; never let the permanent cluster spill down.
+function layoutGifts(){
+ const gifts=bubbles.filter(b=>b.kind==='gift').sort((a,b)=>b.coins-a.coins);
+ if(!gifts.length)return;
+ const padding=8, top=38, bottom=GIFT_ZONE-8;
+ const totalArea=(W-2*padding)*(bottom-top)*.64;
+ const requested=gifts.map(b=>Math.min(108,b.desiredR));
+ const area=requested.reduce((s,r)=>s+Math.PI*(r+3)**2,0);
+ let scale=Math.min(1,Math.sqrt(totalArea/Math.max(1,area)));
+ let placed=[];
+ for(let attempt=0;attempt<18;attempt++){
+  placed=[];let failed=false;
+  for(let i=0;i<gifts.length;i++){
+   const b=gifts[i],r=Math.max(9,requested[i]*scale);let best=null,bestPenalty=Infinity;
+   for(let k=0;k<450;k++){
+    const x=r+padding+((k*137.508+i*43.7)%(W-2*(r+padding)));
+    const y=top+r+((k*91.71+i*29.3)%(bottom-top-2*r));
+    let penalty=0;
+    for(const q of placed){let overlap=r+q.r+4-Math.hypot(x-q.x,y-q.y);if(overlap>0)penalty+=overlap*overlap;}
+    if(penalty<bestPenalty){bestPenalty=penalty;best={x,y,r};if(penalty===0)break;}
+   }
+   if(bestPenalty>0.01){failed=true;break;}
+   placed.push(best);
+  }
+  if(!failed)break;
+  scale*=.87;
+ }
+ gifts.forEach((b,i)=>{const q=placed[i];if(q){b.targetX=q.x;b.targetY=q.y;b.displayR=q.r;}else{b.targetX=18+(i%18)*28;b.targetY=60+Math.floor(i/18)*24;b.displayR=9;}});
+}
+function like(){make(viewer(),'like',Math.max(1,+document.getElementById('streak').value||1))}function comment(){make(viewer(),'comment')}function share(){make(viewer(),'share')}function gift(){make(viewer(),'gift',1,Math.max(1,+document.getElementById('coins').value||1))}
+
+// Browser connects only to the local relay; PirateTok runs in Node.js.
+let liveSocket=null, liveConnected=false;
+function setLiveStatus(t){document.getElementById('connectionStatus').textContent=t;}
+function connectLive(){
+ const username=document.getElementById('liveUser').value.trim().replace(/^@/,'');
+ if(!/^[A-Za-z0-9._]{2,30}$/.test(username)){setLiveStatus('Enter a valid TikTok username.');return;}
+ if(liveSocket)liveSocket.close();
+ const url=(location.protocol==='https:'?'wss://':'ws://')+location.host+'/events';
+ try{const ws=new WebSocket(url);liveSocket=ws;setLiveStatus('Connecting to local relay…');
+ ws.onopen=()=>{ws.send(JSON.stringify({action:'connect',username}));setLiveStatus('Connecting to @'+username+'…')};
+ ws.onmessage=({data})=>{let m;try{m=JSON.parse(data)}catch{return}
+ if(m.type==='status'){liveConnected=m.state==='connected';setLiveStatus(m.message||m.state);return}
+ if(m.type==='viewerCount'){document.getElementById('liveViewerCount').textContent=m.count.toLocaleString()+' LIVE viewers';return}
+ if(m.type==='event'&&['like','comment','share','gift'].includes(m.event))make(m.name||'Viewer',m.event,m.count||1,m.diamonds||0,m.avatar||'',m.userId||'');
+ };
+ ws.onerror=()=>setLiveStatus('Relay unavailable. Start the Node.js server first.');
+ ws.onclose=()=>{liveConnected=false;if(liveSocket===ws){liveSocket=null;setLiveStatus('Disconnected from relay.')}};
+ }catch(e){setLiveStatus('Unable to open local relay: '+e.message)}
+}
+function disconnectLive(){if(liveSocket){if(liveSocket.readyState===1)liveSocket.send(JSON.stringify({action:'disconnect'}));liveSocket.close();liveSocket=null;}liveConnected=false;setLiveStatus('Disconnected · simulation available')}
+
+function crowdStep(){const name=crowdNames[Math.floor(rand(0,crowdNames.length))];const existing=bubbles.find(b=>b.name===name&&!b.burst);const roll=Math.random();if(roll<.42){const weights=[1,20,100,1000,10000];const coins=weights[Math.floor(rand(0,weights.length))];make(name,'gift',1,coins)}else if(roll<.76)make(name,'like',Math.floor(rand(1,120)));else if(roll<.9)make(name,'share');else make(name,'comment');if(existing&&existing.kind==='gift'&&Math.random()<.45)make(name,'gift',1,[20,100,1000,10000][Math.floor(rand(0,4))]);}
+function crowd(){if(crowdTimer){clearInterval(crowdTimer);crowdTimer=null;document.getElementById('crowdBtn').textContent='👥 Start crowd simulation';return}for(let i=0;i<7;i++)crowdStep();crowdTimer=setInterval(crowdStep,1100);document.getElementById('crowdBtn').textContent='⏸ Stop crowd simulation'}
+function reset(){bubbles=[];incoming=[];effects=[];if(crowdTimer){clearInterval(crowdTimer);crowdTimer=null;document.getElementById('crowdBtn').textContent='👥 Start crowd simulation'}rankings()}
+function drawEffects(dt){effects=effects.filter(e=>{e.age+=dt;const t=e.age,duration=1.4+e.tier*.5;if(t>duration)return false;const x=e.target.x,y=e.target.y,r=e.target.r,fade=Math.max(0,1-t/duration);ctx.save();ctx.globalAlpha=fade;const hue=e.tier===3?'255,210,85':e.tier===2?'105,230,255':'205,160,255';for(let ring=0;ring<e.tier;ring++){let rr=r+15+t*(85+e.tier*32)-ring*22;if(rr>0){ctx.strokeStyle=`rgba(${hue},${.8*fade})`;ctx.lineWidth=2+e.tier*1.5;ctx.shadowColor=`rgb(${hue})`;ctx.shadowBlur=12+e.tier*13;ctx.beginPath();ctx.arc(x,y,rr,0,Math.PI*2);ctx.stroke()}}ctx.shadowBlur=0;for(let particle of e.particles){let a=particle.a+(e.tier>=2?t*1.7:0),dist=r+particle.v*t;ctx.fillStyle=`rgba(${hue},${fade})`;ctx.beginPath();ctx.arc(x+Math.cos(a)*dist,y+Math.sin(a)*dist,particle.r*fade,0,Math.PI*2);ctx.fill()}if(e.tier===3){let beam=ctx.createRadialGradient(x,y,5,x,y,260*t+30);beam.addColorStop(0,`rgba(255,225,125,${.3*fade})`);beam.addColorStop(1,'rgba(255,225,125,0)');ctx.fillStyle=beam;ctx.beginPath();ctx.arc(x,y,260*t+30,0,Math.PI*2);ctx.fill()}ctx.restore();return true})}
+function plant(x,y,s,col){ctx.save();ctx.translate(x,y);ctx.strokeStyle=col;ctx.lineWidth=8*s;ctx.lineCap='round';for(let i=-2;i<=2;i++){ctx.beginPath();ctx.moveTo(0,0);ctx.bezierCurveTo(i*14*s,-45*s,i*30*s+Math.sin(time+i)*12*s,-90*s,i*21*s+Math.sin(time*1.3+i)*18*s,-150*s+Math.abs(i)*12*s);ctx.stroke()}ctx.restore()}
+function coral(x,y,s,col){ctx.save();ctx.translate(x,y);ctx.strokeStyle=col;ctx.lineWidth=11*s;ctx.lineCap='round';function branch(x,y,len,a,d){if(d===0)return;let xx=x+Math.cos(a)*len,yy=y+Math.sin(a)*len;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.stroke();branch(xx,yy,len*.68,a-.5,d-1);branch(xx,yy,len*.66,a+.5,d-1)}branch(0,0,48*s,-Math.PI/2,4);ctx.restore()}
+function star(x,y,r){ctx.save();ctx.translate(x,y);ctx.rotate(.3);ctx.beginPath();for(let i=0;i<10;i++){let a=i*Math.PI/5-Math.PI/2,rr=i%2?r*.48:r;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}ctx.closePath();ctx.fillStyle='#ffbd77';ctx.fill();ctx.strokeStyle='#f28d65';ctx.lineWidth=3;ctx.stroke();ctx.restore()}
+function lobster(l){
+ let x=l.x+Math.sin(time*.35+l.phase)*35,y=l.y+Math.sin(time*.8+l.phase)*18;
+ ctx.save();ctx.translate(x,y);ctx.rotate(Math.sin(time*.4+l.phase)*.08);ctx.scale(l.scale,l.scale);
+ // Side-profile lobster, head on the left, segmented tail on the right.
+ ctx.strokeStyle='#b72f3e';ctx.lineWidth=3.5;ctx.lineCap='round';
+ for(let i=0;i<4;i++){let tx=22+i*13;ctx.fillStyle=i%2?'#f16c62':'#e85852';ctx.beginPath();ctx.ellipse(tx,5,13-i*1.4,16-i*1.5,-.18,0,Math.PI*2);ctx.fill();ctx.stroke()}
+ ctx.fillStyle='#ff7967';ctx.beginPath();ctx.ellipse(-5,-2,32,21,-.1,0,Math.PI*2);ctx.fill();ctx.stroke();
+ ctx.beginPath();ctx.moveTo(64,5);ctx.lineTo(85,-10);ctx.lineTo(83,14);ctx.lineTo(65,16);ctx.closePath();ctx.fill();ctx.stroke();
+ for(let i=0;i<4;i++){ctx.beginPath();ctx.moveTo(-5+i*13,13);ctx.lineTo(4+i*14,30+Math.sin(time*4+i)*4);ctx.lineTo(15+i*14,33);ctx.stroke()}
+ for(let k of [-1,1]){let cy=k===-1?-25:20;ctx.beginPath();ctx.moveTo(-22,k*9);ctx.lineTo(-44,cy);ctx.lineTo(-63,cy-5);ctx.stroke();ctx.fillStyle='#ff7669';ctx.beginPath();ctx.ellipse(-68,cy-8,14,12,-.3,0,7);ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(-76,cy-15);ctx.lineTo(-64,cy-4);ctx.stroke()}
+ ctx.fillStyle='#13283a';ctx.beginPath();ctx.arc(-23,-11,4.5,0,7);ctx.fill();ctx.beginPath();ctx.moveTo(-25,-19);ctx.lineTo(-32,-38);ctx.moveTo(-20,-18);ctx.lineTo(-15,-40);ctx.stroke();ctx.restore()
+}
+function bubble(b,dt){
+ b.age+=dt;b.flash=Math.max(0,b.flash-dt*2);
+ if(b.burst>0){b.burst+=dt;return b.burst<.5}
+ b.r+=( (b.kind==='gift'?(b.displayR||b.desiredR):Math.min(b.desiredR,temporaryRadiusCap()))-b.r)*Math.min(1,dt*4);
+ if(b.kind!=='gift')b.r=Math.min(b.r,temporaryRadiusCap());
+ if(b.kind==='gift'){b.y+=((b.targetY??95)-b.y)*Math.min(1,dt*1.5);b.x+=((b.targetX??b.x)-b.x)*Math.min(1,dt*1.5)}
+ else{b.y-=b.speed*dt*60;if(b.age>b.life||b.y<-b.r)b.burst=.001}
+ return true
+}
+function squishPhysics(dt){
+ // Store independent, local contact dents. No whole-bubble scaling.
+ const active=bubbles.filter(b=>!b.burst);
+ for(const b of active){b.dents??=[];for(const dent of b.dents){dent.depth*=Math.exp(-dt*7)}b.dents=b.dents.filter(d=>d.depth>.002);}
+ for(let i=0;i<active.length;i++)for(let j=i+1;j<active.length;j++){
+  const a=active[i],b=active[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.max(1,Math.hypot(dx,dy));
+  const overlap=a.r+b.r+3-d;if(overlap<=0)continue;
+  const nx=dx/d,ny=dy/d;
+  // Local indentation at the contact normal, narrow enough to preserve silhouette.
+  const depth=Math.min(Math.min(a.r,b.r)*.19,overlap*.38);
+  function dent(target,angle){let found=target.dents.find(v=>Math.abs(Math.atan2(Math.sin(v.angle-angle),Math.cos(v.angle-angle)))<.35);if(found){found.angle=angle;found.depth=Math.max(found.depth,depth)}else target.dents.push({angle,depth});}
+  dent(a,Math.atan2(ny,nx));dent(b,Math.atan2(-ny,-nx));
+  if(a.kind==='gift'&&b.kind==='gift'){
+   const shift=Math.min(overlap*.16,2.5);a.x-=nx*shift;a.y-=ny*shift;b.x+=nx*shift;b.y+=ny*shift;
+  }
+ }
+ for(const b of active)if(b.kind==='gift'){const r=b.r;b.x=Math.max(r+5,Math.min(W-r-5,b.x));b.y=Math.max(r+5,Math.min(GIFT_ZONE-r-5,b.y));}
+}
+function bubblePath(x,y,r,b){
+ ctx.beginPath();const n=96;
+ for(let i=0;i<=n;i++){
+  const a=i*2*Math.PI/n;
+  let dent=0;
+  for(const d of b.dents||[]){const delta=Math.atan2(Math.sin(a-d.angle),Math.cos(a-d.angle));dent+=d.depth*Math.exp(-.5*(delta/.29)**2)}
+  const idle=r*.006*Math.sin(3*a+time*1.8+b.phase);
+  const rr=Math.max(r*.72,r-dent+idle),px=x+Math.cos(a)*rr,py=y+Math.sin(a)*rr;
+  if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+ }ctx.closePath();
+}
+function drawBubble(b){
+ const x=b.x+(b.kind==='gift'?0:Math.sin(time*1.4+b.phase)*10),y=b.y,r=b.r;
+ if(b.burst){ctx.strokeStyle='#aafaff';ctx.lineWidth=3;for(let i=0;i<9;i++){let a=i*Math.PI*2/9,rr=r+b.burst*110;ctx.beginPath();ctx.arc(x+Math.cos(a)*rr,y+Math.sin(a)*rr,Math.max(.2,4*(1-b.burst*2)),0,7);ctx.stroke()}return}
+ ctx.save();bubblePath(x,y,r,b);ctx.clip();
+ let grad=ctx.createLinearGradient(x-r,y-r,x+r,y+r);grad.addColorStop(0,b.color);grad.addColorStop(1,'#123b60');ctx.fillStyle=grad;ctx.fillRect(x-r,y-r,2*r,2*r);
+ if(b.avatar&&b.avatar.complete&&b.avatar.naturalWidth){ctx.drawImage(b.avatar,x-r,y-r,2*r,2*r)}else{ctx.fillStyle='#fff';ctx.font=`800 ${Math.max(17,r*.8)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(b.name.slice(0,2).toUpperCase(),x,y)}
+ ctx.fillStyle='#ffffff17';ctx.beginPath();ctx.ellipse(x-r*.3,y-r*.55,r*.45,r*.15,-.5,0,7);ctx.fill();ctx.restore();
+ const medal=b.kind==='gift'?(b.rank===1?'#FFD34D':b.rank===2?'#57E5FF':b.rank===3?'#FF9454':'#c5faff'):'#c5faff';
+ if(b.kind==='gift'&&b.rank<=3){
+  const pulse=(Math.sin(time*(b.rank===1?3.7:b.rank===2?4.8:2.9))+1)/2;
+  ctx.save();ctx.shadowColor=medal;ctx.shadowBlur=15+28*pulse;ctx.strokeStyle=medal;ctx.lineWidth=5+4*pulse;bubblePath(x,y,r+3+3*pulse,b);ctx.stroke();ctx.restore();
+  if(b.rank===2){ctx.save();ctx.setLineDash([6,8]);ctx.lineDashOffset=-time*25;ctx.strokeStyle='#c5faff';ctx.lineWidth=2;bubblePath(x,y,r+9,b);ctx.stroke();ctx.restore()}
+ }
+ ctx.strokeStyle=medal;ctx.lineWidth=b.kind==='gift'?4:3;bubblePath(x,y,r,b);ctx.stroke();
+ ctx.textAlign='center';ctx.font='bold 15px system-ui';ctx.fillStyle='white';ctx.shadowColor='#002c44';ctx.shadowBlur=7;ctx.fillText(b.name.slice(0,13),x,y+r+19);ctx.shadowBlur=0;
+ if(b.flash){ctx.strokeStyle=`rgba(255,255,255,${b.flash})`;ctx.lineWidth=7*b.flash;bubblePath(x,y,r+5,b);ctx.stroke()}
+}
+function drawIncoming(dt){
+ incoming=incoming.filter(q=>{
+  if(q.target.burst)return false;
+  q.age+=dt;const b=q.target,tx=b.x,ty=b.y;
+  const dx=tx-q.x,dy=ty-q.y,d=Math.hypot(dx,dy);
+  if(d<Math.max(10,b.r*.7)){b.flash=1;return false}
+  let speed=Math.max(170,d*1.25)*dt*q.speed;
+  q.x+=dx/d*Math.min(speed,d);q.y+=dy/d*Math.min(speed,d);
+  q.r=Math.min(q.r,temporaryRadiusCap());
+  ctx.save();ctx.beginPath();ctx.arc(q.x,q.y,q.r-1,0,7);ctx.clip();const bg=ctx.createLinearGradient(q.x-q.r,q.y-q.r,q.x+q.r,q.y+q.r);bg.addColorStop(0,b.color);bg.addColorStop(1,'#123b60');ctx.fillStyle=bg;ctx.fillRect(q.x-q.r,q.y-q.r,2*q.r,2*q.r);if(b.avatar&&b.avatar.complete&&b.avatar.naturalWidth){ctx.drawImage(b.avatar,q.x-q.r,q.y-q.r,2*q.r,2*q.r)}else{ctx.fillStyle='white';ctx.font=`800 ${Math.max(9,q.r*.8)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(b.name.slice(0,2).toUpperCase(),q.x,q.y)}ctx.restore();ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,7);ctx.strokeStyle=q.kind==='gift'?'#ffe6ad':'#d4fbff';ctx.lineWidth=2.5;ctx.stroke();return q.age<9
+ })
+}
+function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;time+=dt;ctx.clearRect(0,0,W,H);let rays=ctx.createLinearGradient(0,0,0,H);rays.addColorStop(0,'#0c9dc0');rays.addColorStop(.45,'#086c98');rays.addColorStop(1,'#062b4d');ctx.fillStyle=rays;ctx.fillRect(0,0,W,H);for(let i=0;i<7;i++){ctx.save();ctx.translate(i*100-80,0);ctx.rotate(.13+Math.sin(time*.25+i)*.08);let grad=ctx.createLinearGradient(0,0,70,750);grad.addColorStop(0,'#d1ffff29');grad.addColorStop(1,'#baffff00');ctx.fillStyle=grad;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(75,0);ctx.lineTo(220,750);ctx.lineTo(30,750);ctx.fill();ctx.restore()}for(let a of ambient){a.y-=a.s*dt*55;a.x+=Math.sin(time+a.phase)*dt*5;if(a.y< -15){a.y=H+15;a.x=rand(0,W)}ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,7);ctx.strokeStyle='#c4ffff55';ctx.lineWidth=1.5;ctx.stroke()}ctx.fillStyle='#b99d78';ctx.beginPath();ctx.moveTo(0,870);ctx.quadraticCurveTo(160,830,300,877);ctx.quadraticCurveTo(420,840,540,870);ctx.lineTo(540,960);ctx.lineTo(0,960);ctx.fill();plant(35,930,1.05,'#1cb78d');plant(510,940,1.1,'#12aa82');plant(170,945,.7,'#20a87e');coral(90,927,.95,'#f27f9b');coral(432,930,1.15,'#a58de4');coral(320,947,.6,'#ffac7c');star(250,916,21);star(480,890,13);lobsters.forEach(lobster);bubbles=bubbles.filter(b=>bubble(b,dt));squishPhysics(dt);bubbles.sort((a,b)=>b.r-a.r);bubbles.forEach(drawBubble);drawIncoming(dt);drawEffects(dt);document.getElementById('count').textContent=bubbles.length+' viewer bubbles';requestAnimationFrame(frame)}requestAnimationFrame(frame);
+</script></body></html>
